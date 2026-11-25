@@ -10,7 +10,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import NavItem from './NavItem';
-import { DemoAccount } from '../contexts/AccountContext';
+import { Account } from '../contexts/AccountContext';
 
 interface SidebarProps {
   isDarkMode: boolean;
@@ -21,9 +21,13 @@ interface SidebarProps {
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isCollapsed: boolean;
   setIsCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
-  accounts: DemoAccount[];
-  currentAccount: DemoAccount;
+  accounts: Account[];
+  currentAccount: Account;
   setCurrentAccountById: (id: string) => void;
+  firebaseEnabled: boolean;
+  authError: string | null;
+  onSignIn: () => Promise<void>;
+  onSignOut: () => Promise<void>;
 }
 
 /**
@@ -41,6 +45,10 @@ const SidebarComponent: React.FC<SidebarProps> = ({
   accounts,
   currentAccount,
   setCurrentAccountById,
+  firebaseEnabled,
+  authError,
+  onSignIn,
+  onSignOut,
 }) => {
   return (
     <>
@@ -108,23 +116,48 @@ const SidebarComponent: React.FC<SidebarProps> = ({
           </div>
 
           <div className="pt-1 space-y-1">
-            {accounts.map((account) => {
-              const selected = account.id === currentAccount.id;
-              return (
-                <button
-                  key={account.id}
-                  onClick={() => setCurrentAccountById(account.id)}
-                  className={`w-full rounded-xl border px-2.5 py-2 text-[10px] font-black uppercase tracking-wide transition-colors ${
-                    selected
-                      ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
-                      : "border-(--border) text-(--text-secondary) hover:text-(--text-primary)"
-                  } ${isCollapsed ? "text-[9px]" : ""}`}
-                  title={account.name}
-                >
-                  {isCollapsed ? account.initials : account.name}
-                </button>
-              );
-            })}
+            {firebaseEnabled ? (
+              <>
+                {currentAccount.isAuthenticated ? (
+                  <button
+                    onClick={() => void onSignOut()}
+                    className={`w-full rounded-xl border border-(--border) px-2.5 py-2 text-[10px] font-black uppercase tracking-wide text-(--text-secondary) hover:text-(--text-primary) ${isCollapsed ? "text-[9px]" : ""}`}
+                    title="Sign out"
+                  >
+                    {isCollapsed ? "Out" : "Sign out"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => void onSignIn()}
+                    className={`w-full rounded-xl border border-(--accent) bg-(--accent-soft) px-2.5 py-2 text-[10px] font-black uppercase tracking-wide text-(--accent) ${isCollapsed ? "text-[9px]" : ""}`}
+                    title="Sign in with Google"
+                  >
+                    {isCollapsed ? "In" : "Sign in with Google"}
+                  </button>
+                )}
+                {authError && !isCollapsed && (
+                  <p className="px-1 text-[10px] leading-snug text-(--accent)">{authError}</p>
+                )}
+              </>
+            ) : (
+              accounts.map((account) => {
+                const selected = account.id === currentAccount.id;
+                return (
+                  <button
+                    key={account.id}
+                    onClick={() => setCurrentAccountById(account.id)}
+                    className={`w-full rounded-xl border px-2.5 py-2 text-[10px] font-black uppercase tracking-wide transition-colors ${
+                      selected
+                        ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
+                        : "border-(--border) text-(--text-secondary) hover:text-(--text-primary)"
+                    } ${isCollapsed ? "text-[9px]" : ""}`}
+                    title={account.name}
+                  >
+                    {isCollapsed ? account.initials : account.name}
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
       </aside>

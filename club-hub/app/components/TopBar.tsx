@@ -1,10 +1,10 @@
 import React from 'react';
 import { Menu, Bell } from 'lucide-react';
-import { DemoAccount } from '../contexts/AccountContext';
+import { Account } from '../contexts/AccountContext';
 
 interface TopBarProps {
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  currentAccount: DemoAccount;
+  currentAccount: Account;
 }
 
 const TopBar: React.FC<TopBarProps> = ({ setIsOpen, currentAccount }) => (

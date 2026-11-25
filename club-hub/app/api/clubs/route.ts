@@ -1,74 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
-import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { ResultSetHeader } from 'mysql2/promise';
+import { requireUser } from '@/lib/auth';
+import { DbClub, readClubInput, rowToClub } from '@/lib/clubs';
 
-export interface DbClub extends RowDataPacket {
-  club_id: number;
-  name: string;
-  description: string;
-  category: string;
-  meeting_time: string;
-  location: string;
-  contact_email: string;
-  instagram_url?: string;
-  twitter_url?: string;
-  facebook_url?: string;
-  remind_url?: string;
-}
+export type { DbClub };
 
 // GET all clubs
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const connection = await pool.getConnection();
-    const [rows] = await connection.query<DbClub[]>(
-      'SELECT * FROM clubs ORDER BY club_id ASC'
-    );
-    connection.release();
-
-    return NextResponse.json(rows, { status: 200 });
+    const [rows] = await pool.query<DbClub[]>('SELECT * FROM clubs ORDER BY club_id ASC');
+    return NextResponse.json(rows.map(rowToClub), { status: 200 });
   } catch (error) {
     console.error('Database error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch clubs' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch clubs' }, { status: 500 });
   }
 }
 
-// POST a new club (admin only)
+// POST a new club (teachers only). name, description and category are required.
 export async function POST(request: NextRequest) {
+  const auth = await requireUser({ role: 'teacher' });
+  if (auth.error) return auth.error;
+
+  let body: unknown;
   try {
-    const body = await request.json();
-    const {
-      name,
-      description,
-      category,
-      meeting_time,
-      location,
-      contact_email,
-      instagram_url,
-      twitter_url,
-      facebook_url,
-      remind_url,
-    } = body;
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Expected a JSON object' }, { status: 400 });
+  }
 
-    const connection = await pool.getConnection();
-    const [result] = await connection.query<ResultSetHeader>(
-      `INSERT INTO clubs (name, description, category, meeting_time, location, contact_email, instagram_url, twitter_url, facebook_url, remind_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, description, category, meeting_time, location, contact_email, instagram_url, twitter_url, facebook_url, remind_url]
-    );
-    connection.release();
+  const input = readClubInput(body, { requireAll: true });
+  if ('error' in input) {
+    return NextResponse.json({ error: input.error }, { status: 400 });
+  }
 
-    return NextResponse.json(
-      { club_id: result.insertId, ...body },
-      { status: 201 }
+  try {
+    const placeholders = input.columns.map(() => '?').join(', ');
+    const [result] = await pool.query<ResultSetHeader>(
+      `INSERT INTO clubs (${input.columns.join(', ')}) VALUES (${placeholders})`,
+      input.values
     );
+    const [rows] = await pool.query<DbClub[]>('SELECT * FROM clubs WHERE club_id = ?', [result.insertId]);
+    return NextResponse.json(rowToClub(rows[0]), { status: 201 });
   } catch (error) {
     console.error('Database error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create club' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to create club' }, { status: 500 });
   }
 }

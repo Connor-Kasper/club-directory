@@ -2,18 +2,43 @@
 
 import React, { useEffect, useState } from 'react';
 import { getClubs, getCategories, Club } from '../data/clubs';
+import { getClubsFromDatabase } from '../data/db-clubs';
 import { ClubCard } from './components/ClubCard';
 import { ClubModal } from './components/ClubModal';
 import { SearchBar } from './components/SearchBar';
 import { CategoryFilter } from './components/CategoryFilter';
+import { useAccount } from '../contexts/AccountContext';
 
 const ClubsPage = () => {
+  const { currentAccount } = useAccount();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [favorites, setFavorites] = useState<number[]>([]);
-  const [clubsData] = useState<Club[]>(getClubs());
+  const [clubsData, setClubsData] = useState<Club[]>(() => getClubs());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadClubs = async () => {
+      try {
+        const dbClubs = await getClubsFromDatabase();
+        if (!cancelled && dbClubs.length > 0) {
+          setClubsData(dbClubs);
+        }
+      } catch {
+        if (!cancelled) {
+          setClubsData(getClubs());
+        }
+      }
+    };
+
+    void loadClubs();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const CATEGORIES = getCategories(clubsData);
 
@@ -42,11 +67,51 @@ const ClubsPage = () => {
     setSelectedClub(null);
   };
 
+  useEffect(() => {
+    if (!currentAccount.isAuthenticated) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadFavorites = async () => {
+      try {
+        const response = await fetch('/api/favorites', { cache: 'no-store' });
+        if (!response.ok) return;
+        const rows = (await response.json()) as { club_id: number }[];
+        if (!cancelled) {
+          setFavorites(rows.map((row) => row.club_id));
+        }
+      } catch (error) {
+        console.error('Failed to load favorites', error);
+      }
+    };
+
+    void loadFavorites();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAccount.isAuthenticated, currentAccount.dbUserId]);
+
   const toggleFavorite = (e: React.MouseEvent, id: number) => {
-    if (e) e.stopPropagation(); 
-    setFavorites(prev => 
-      prev.includes(id) ? prev.filter(fId => fId !== id) : [...prev, id]
+    if (e) e.stopPropagation();
+    const isFavorite = favorites.includes(id);
+    setFavorites(prev =>
+      isFavorite ? prev.filter(fId => fId !== id) : [...prev, id]
     );
+
+    if (!currentAccount.isAuthenticated) {
+      return;
+    }
+
+    void fetch('/api/favorites', {
+      method: isFavorite ? 'DELETE' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ club_id: id }),
+    }).catch((error) => {
+      console.error('Failed to save favorite', error);
+    });
   };
 
   const nextImage = (e: React.MouseEvent) => {

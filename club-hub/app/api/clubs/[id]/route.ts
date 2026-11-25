@@ -1,128 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
-import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { ResultSetHeader } from 'mysql2/promise';
+import { requireUser } from '@/lib/auth';
+import { DbClub, readClubInput, rowToClub } from '@/lib/clubs';
 
-export interface DbClub extends RowDataPacket {
-  club_id: number;
-  name: string;
-  description: string;
-  category: string;
-  meeting_time: string;
-  location: string;
-  contact_email: string;
-  instagram_url?: string;
-  twitter_url?: string;
-  facebook_url?: string;
-  remind_url?: string;
+// Next.js 16 passes route params as a Promise.
+type RouteContext = { params: Promise<{ id: string }> };
+
+async function readClubId(params: RouteContext['params']) {
+  const { id } = await params;
+  const clubId = Number(id);
+  return Number.isInteger(clubId) && clubId > 0 ? clubId : null;
 }
+
+const notFound = () => NextResponse.json({ error: 'Club not found' }, { status: 404 });
 
 // GET a specific club by ID
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_request: NextRequest, { params }: RouteContext) {
+  const clubId = await readClubId(params);
+  if (!clubId) return notFound();
+
   try {
-    const clubId = params.id;
-    const connection = await pool.getConnection();
-    const [rows] = await connection.query<DbClub[]>(
-      'SELECT * FROM clubs WHERE club_id = ?',
-      [clubId]
-    );
-    connection.release();
-
-    if (rows.length === 0) {
-      return NextResponse.json(
-        { error: 'Club not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(rows[0], { status: 200 });
+    const [rows] = await pool.query<DbClub[]>('SELECT * FROM clubs WHERE club_id = ?', [clubId]);
+    if (rows.length === 0) return notFound();
+    return NextResponse.json(rowToClub(rows[0]), { status: 200 });
   } catch (error) {
     console.error('Database error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch club' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch club' }, { status: 500 });
   }
 }
 
-// UPDATE a club
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// UPDATE a club (teachers only). Only the fields you send are changed.
+export async function PUT(request: NextRequest, { params }: RouteContext) {
+  const auth = await requireUser({ role: 'teacher' });
+  if (auth.error) return auth.error;
+
+  const clubId = await readClubId(params);
+  if (!clubId) return notFound();
+
+  let body: unknown;
   try {
-    const clubId = params.id;
-    const body = await request.json();
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Expected a JSON object' }, { status: 400 });
+  }
 
-    const connection = await pool.getConnection();
-    const [result] = await connection.query<ResultSetHeader>(
-      `UPDATE clubs SET name = ?, description = ?, category = ?, meeting_time = ?, location = ?, contact_email = ?, instagram_url = ?, twitter_url = ?, facebook_url = ?, remind_url = ?
-       WHERE club_id = ?`,
-      [
-        body.name,
-        body.description,
-        body.category,
-        body.meeting_time,
-        body.location,
-        body.contact_email,
-        body.instagram_url,
-        body.twitter_url,
-        body.facebook_url,
-        body.remind_url,
-        clubId,
-      ]
+  const input = readClubInput(body, { requireAll: false });
+  if ('error' in input) {
+    return NextResponse.json({ error: input.error }, { status: 400 });
+  }
+  if (input.columns.length === 0) {
+    return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+  }
+
+  try {
+    const assignments = input.columns.map((column) => `${column} = ?`).join(', ');
+    const [result] = await pool.query<ResultSetHeader>(
+      `UPDATE clubs SET ${assignments} WHERE club_id = ?`,
+      [...input.values, clubId]
     );
-    connection.release();
+    if (result.affectedRows === 0) return notFound();
 
-    if (result.affectedRows === 0) {
-      return NextResponse.json(
-        { error: 'Club not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(
-      { club_id: clubId, ...body },
-      { status: 200 }
-    );
+    const [rows] = await pool.query<DbClub[]>('SELECT * FROM clubs WHERE club_id = ?', [clubId]);
+    return NextResponse.json(rowToClub(rows[0]), { status: 200 });
   } catch (error) {
     console.error('Database error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update club' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to update club' }, { status: 500 });
   }
 }
 
-// DELETE a club
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// DELETE a club (teachers only). Its favorites are removed with it.
+export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+  const auth = await requireUser({ role: 'teacher' });
+  if (auth.error) return auth.error;
+
+  const clubId = await readClubId(params);
+  if (!clubId) return notFound();
+
   try {
-    const clubId = params.id;
-    const connection = await pool.getConnection();
-    const [result] = await connection.query<ResultSetHeader>(
-      'DELETE FROM clubs WHERE club_id = ?',
-      [clubId]
-    );
-    connection.release();
-
-    if (result.affectedRows === 0) {
-      return NextResponse.json(
-        { error: 'Club not found' },
-        { status: 404 }
-      );
-    }
-
+    const [result] = await pool.query<ResultSetHeader>('DELETE FROM clubs WHERE club_id = ?', [clubId]);
+    if (result.affectedRows === 0) return notFound();
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error('Database error:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete club' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to delete club' }, { status: 500 });
   }
 }

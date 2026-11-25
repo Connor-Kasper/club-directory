@@ -12,7 +12,15 @@ export default function ClientShell({ children }: { children: React.ReactNode })
   const [isSidebarForcedHidden, setIsSidebarForcedHidden] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { isDarkMode, setIsDarkMode } = useTheme();
-  const { accounts, currentAccount, setCurrentAccountById } = useAccount();
+  const {
+    accounts,
+    currentAccount,
+    setCurrentAccountById,
+    firebaseEnabled,
+    authError,
+    signInWithGoogle,
+    signOut,
+  } = useAccount();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -65,6 +73,10 @@ export default function ClientShell({ children }: { children: React.ReactNode })
           accounts={accounts}
           currentAccount={currentAccount}
           setCurrentAccountById={setCurrentAccountById}
+          firebaseEnabled={firebaseEnabled}
+          authError={authError}
+          onSignIn={signInWithGoogle}
+          onSignOut={signOut}
         />
       )}
 

@@ -10,11 +10,11 @@ A web app (`club-hub/`) for school club discovery and involvement:
 - **Clubs** (`/clubs`) — search, filter, view details, favorites
 - **Calendar** (`/calendar`) — schedule view
 - **Admin** (`/admin`) — club management
-- **API** — `/api/clubs`, `/api/favorites` over MySQL (`mysql2`)
+- **API** — `/api/clubs`, `/api/favorites`, `/api/auth` over MySQL + Firebase Google sign-in
 
 If the DB is down, clubs fall back to local JSON data.
 
-Stack: Next.js 16, React 19, TypeScript, Tailwind, Sass, Lucide.
+Stack: Next.js 16, React 19, TypeScript, Tailwind, Sass, Lucide, Firebase Auth.
 
 ## How to run it
 
@@ -25,24 +25,28 @@ cd club-hub
 npm install
 ```
 
-2. **(Optional) MySQL** — create DB `club_directory` with the tables described in `club-hub/DATABASE_INTEGRATION.md`, then add `club-hub/.env.local`:
+2. **MySQL** — start a local server (needs [Docker Desktop](https://www.docker.com/products/docker-desktop/)):
 
-```
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=your_password
-DB_NAME=club_directory
-NEXT_PUBLIC_API_URL=http://localhost:3000
+```bash
+docker compose up -d
 ```
 
-Skip this if you just want the JSON fallback.
+Already have MySQL/MariaDB on port 3306? Skip this. If the next step says it can't connect, set `DB_USER`/`DB_PASSWORD` in `.env.local` and run it again.
 
-3. **Start the app**:
+3. **Setup** — creates `.env.local` (with a fresh `SESSION_SECRET`), the tables, and sample clubs. Safe to re-run:
+
+```bash
+npm run setup
+```
+
+4. **Start the app**:
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) — it redirects to `/dashboard`.
+Open [http://localhost:3000](http://localhost:3000) — it redirects to `/dashboard`. Sign in with Google (enabled on the `clubhub-kasper` Firebase project). Teacher/admin access is granted to emails listed in `TEACHER_EMAILS` in `.env.local`.
 
-Other scripts: `npm run build` then `npm start` for production; `npm run lint` for linting.
+Other scripts: `npm test` runs the API tests (uses its own test database); `npm run build` then `npm start` for production; `npm run lint` for linting.
+
+**Adding a club:** add a file to `club-hub/app/data/` (copy an existing one, give it a new `id`) and run `npm run setup`. Details and the API option are in `club-hub/DATABASE_INTEGRATION.md`, along with the table layout.

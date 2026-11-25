@@ -6,12 +6,17 @@ export interface DbClub {
   description: string;
   category: string;
   meeting_time: string;
+  meeting_day?: string;
   location: string;
   contact_email: string;
+  sponsor_name?: string;
+  dues?: string;
   instagram_url?: string;
   twitter_url?: string;
   facebook_url?: string;
   remind_url?: string;
+  images?: string[];
+  events?: { name: string; date: string }[];
 }
 
 /**
@@ -19,7 +24,7 @@ export interface DbClub {
  */
 export async function getClubsFromDatabase(): Promise<Club[]> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clubs`, {
+    const response = await fetch('/api/clubs', {
       cache: 'no-store',
     });
 
@@ -36,11 +41,11 @@ export async function getClubsFromDatabase(): Promise<Club[]> {
       description: club.description,
       category: club.category,
       time: club.meeting_time,
-      day: '', // You may want to add day field to database
+      day: club.meeting_day ?? '',
       location: club.location,
-      dues: '', // You may want to add dues field to database
+      dues: club.dues ?? '',
       sponsor: {
-        name: '',
+        name: club.sponsor_name ?? '',
         email: club.contact_email,
       },
       socials: {
@@ -49,8 +54,8 @@ export async function getClubsFromDatabase(): Promise<Club[]> {
         facebook: club.facebook_url,
         remind: club.remind_url,
       },
-      events: [], // You may want to fetch events separately
-      images: [], // You may want to fetch images separately
+      events: club.events ?? [],
+      images: club.images ?? [],
       tags: [club.category],
     }));
   } catch (error) {
@@ -65,7 +70,7 @@ export async function getClubsFromDatabase(): Promise<Club[]> {
 export async function getClubFromDatabase(clubId: number): Promise<Club | null> {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || ''}/api/clubs/${clubId}`,
+      `/api/clubs/${clubId}`,
       { cache: 'no-store' }
     );
 
@@ -82,11 +87,11 @@ export async function getClubFromDatabase(clubId: number): Promise<Club | null> 
       description: dbClub.description,
       category: dbClub.category,
       time: dbClub.meeting_time,
-      day: '',
+      day: dbClub.meeting_day ?? '',
       location: dbClub.location,
-      dues: '',
+      dues: dbClub.dues ?? '',
       sponsor: {
-        name: '',
+        name: dbClub.sponsor_name ?? '',
         email: dbClub.contact_email,
       },
       socials: {
@@ -95,8 +100,8 @@ export async function getClubFromDatabase(clubId: number): Promise<Club | null> 
         facebook: dbClub.facebook_url,
         remind: dbClub.remind_url,
       },
-      events: [],
-      images: [],
+      events: dbClub.events ?? [],
+      images: dbClub.images ?? [],
       tags: [dbClub.category],
     };
   } catch (error) {

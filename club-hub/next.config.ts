@@ -1,7 +1,13 @@
-/** @type {import('next').NextConfig} */
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+
 const nextConfig = {
-  // Add your custom config here
-  // Example: allowedDevOrigins: ['192.168.1.165'],
+  outputFileTracingRoot: projectRoot,
+  turbopack: {
+    root: projectRoot,
+  },
 };
 
 export default nextConfig;
